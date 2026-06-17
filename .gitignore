@@ -1,0 +1,48 @@
+# Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+publish/
+[Pp]ublish/
+
+# NuGet packaging (local `dotnet pack` output)
+artifacts/
+*.nupkg
+*.snupkg
+*.nuget.props
+*.nuget.targets
+
+# Test output
+[Tt]est[Rr]esult*/
+TestResults/
+*.trx
+*.coverage
+coverage*.json
+coverage*.xml
+
+# User / IDE files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+.idea/
+*.DotSettings.user
+
+# Never commit secrets — keys live in User Secrets / env vars (see README.md)
+appsettings.*.local.json
+secrets.json
+
+# Claude Code machine-local settings (keep shared .claude/settings.json if you add one)
+.claude/settings.local.json
+
+# OS cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
