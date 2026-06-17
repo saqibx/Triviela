@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Triviela.Core/Triviela.Core.csproj" />
+    <Project Path="src/Triviela.Domain/Triviela.Domain.csproj" />
+    <Project Path="src/Triviela.Providers/Triviela.Providers.csproj" />
+    <Project Path="src/Triviela.Tui/Triviela.Tui.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Triviela.Tests/Triviela.Tests.csproj" />
+  </Folder>
+</Solution>
