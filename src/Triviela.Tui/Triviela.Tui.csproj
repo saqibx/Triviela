@@ -23,14 +23,14 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>triviela</ToolCommandName>
     <PackageId>Triviela</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>Saqib</Authors>
-    <Description>A Bloomberg-style, real-time football intelligence terminal for your console. Runs out of the box on a built-in demo match; add API keys for live data.</Description>
+    <Description>A Bloomberg-style, real-time football intelligence terminal for your console. Streams live data with no API key via ESPN or a hosted relay; bring your own API-Football/Claude keys for the full feed.</Description>
     <PackageTags>football;soccer;terminal;tui;cli;spectre-console;dotnet-tool</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <Copyright>Copyright (c) 2026 Saqib</Copyright>
-    <PackageReleaseNotes>Initial release: installable console client with demo fallback and env/file config.</PackageReleaseNotes>
+    <PackageReleaseNotes>Keyless live data: real ESPN feed and a hosted relay (no key needed); auto-detected mode (relay / own key / ESPN / demo).</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

@@ -4,22 +4,36 @@ using Triviela.Providers;
 
 namespace Triviela.Core;
 
-public sealed class CompositeFootballDataSource(
-    ApiFootballDataSource primary,
-    DemoDataSource demo,
-    IOptions<ApiFootballOptions> options) : IFootballDataSource
+public sealed class CompositeFootballDataSource : IFootballDataSource
 {
     public const string DemoPrefix = "demo-";
 
-    private readonly bool _live = options.Value.IsConfigured;
+    private readonly DemoDataSource _demo;
+    private readonly IFootballDataSource _backing;
+    private readonly bool _demoOnly;
 
-    public string Name => "composite";
+    // One-time source selection (NOT a per-tick fallback — mixing demo/real once caused a bug):
+    // API-Football if a key is configured → else keyless ESPN (real free data) → else demo.
+    public CompositeFootballDataSource(
+        ApiFootballDataSource apiFootball,
+        EspnFootballDataSource espn,
+        DemoDataSource demo,
+        IOptions<ApiFootballOptions> apiOptions,
+        IOptions<EspnOptions> espnOptions)
+    {
+        _demo = demo;
+        if (apiOptions.Value.IsConfigured) { _backing = apiFootball; _demoOnly = false; }
+        else if (espnOptions.Value.IsConfigured) { _backing = espn; _demoOnly = false; }
+        else { _backing = demo; _demoOnly = true; }
+    }
+
+    public string Name => $"composite:{_backing.Name}";
 
     private IFootballDataSource Route(string fixtureId) =>
-        !_live || fixtureId.StartsWith(DemoPrefix, StringComparison.Ordinal) ? demo : primary;
+        _demoOnly || fixtureId.StartsWith(DemoPrefix, StringComparison.Ordinal) ? _demo : _backing;
 
     public Task<IReadOnlyList<Fixture>> GetLiveFixturesAsync(CancellationToken ct) =>
-        _live ? primary.GetLiveFixturesAsync(ct) : demo.GetLiveFixturesAsync(ct);
+        _demoOnly ? _demo.GetLiveFixturesAsync(ct) : _backing.GetLiveFixturesAsync(ct);
 
     public Task<Fixture?> GetFixtureAsync(string fixtureId, CancellationToken ct) =>
         Route(fixtureId).GetFixtureAsync(fixtureId, ct);

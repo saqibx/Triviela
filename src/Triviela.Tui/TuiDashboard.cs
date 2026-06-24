@@ -13,7 +13,8 @@ public sealed class TuiDashboard(
     IMatchAnalyst analyst,
     Triviela.Providers.ILlmProvider llm,
     Triviela.Providers.LlmCostMeter costs,
-    FreeModeState free)
+    FreeModeState free,
+    RelayConnectionState relay)
 {
     private volatile bool _quit;
 
@@ -276,9 +277,16 @@ public sealed class TuiDashboard(
         }
 
         var freeBadge = free.Enabled ? "[black on green] FREE [/]  " : "";
+        var relayBadge = relay.Status switch
+        {
+            "connected" => "[black on green] RELAY [/]  ",
+            "connecting" or "reconnecting" => "[black on yellow] RELAY… [/]  ",
+            "offline" => "[white on red] RELAY OFFLINE [/]  ",
+            _ => ""
+        };
         var grid = new Grid().AddColumn().AddColumn();
         grid.AddRow(new Markup(left), Align.Right(new Markup(
-            $"{freeBadge}[grey]{E(llm.Name)} ${costs.SpentUsd:0.00}/${costs.BudgetUsd:0.00}[/]  [grey]{focus.Live.Count} live[/]  [orange1]<GO>[/]")));
+            $"{relayBadge}{freeBadge}[grey]{E(llm.Name)} ${costs.SpentUsd:0.00}/${costs.BudgetUsd:0.00}[/]  [grey]{focus.Live.Count} live[/]  [orange1]<GO>[/]")));
         return new Panel(grid).Expand().Border(BoxBorder.Heavy).BorderColor(Amber).Padding(1, 0);
     }
 

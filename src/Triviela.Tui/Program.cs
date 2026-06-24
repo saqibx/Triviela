@@ -51,6 +51,16 @@ builder.Configuration
     .AddUserSecrets(typeof(Program).Assembly, optional: true)
     .AddEnvironmentVariables("TRIVIELA_");
 
+// Mode overrides: --local forces the local poller (ignore any configured relay); --demo forces
+// the offline demo match. Otherwise the mode auto-detects (relay → own key → ESPN → demo).
+if (args.Contains("--local") || args.Contains("--demo"))
+    builder.Configuration["Relay:Url"] = "";
+if (args.Contains("--demo"))
+{
+    builder.Configuration["ApiFootball:ApiKey"] = "";
+    builder.Configuration["Espn:Enabled"] = "false";
+}
+
 builder.Services.AddTriviela(builder.Configuration);
 
 builder.Logging.ClearProviders();
@@ -68,12 +78,12 @@ try
     var dashboard = new TuiDashboard(
         snapshots,
         host.Services.GetRequiredService<FocusState>(),
-
-        host.Services.GetRequiredService<ApiFootballReference>(),
+        host.Services.GetRequiredService<IFootballReference>(),
         host.Services.GetRequiredService<IMatchAnalyst>(),
         host.Services.GetRequiredService<ILlmProvider>(),
         host.Services.GetRequiredService<LlmCostMeter>(),
-        host.Services.GetRequiredService<FreeModeState>());
+        host.Services.GetRequiredService<FreeModeState>(),
+        host.Services.GetRequiredService<RelayConnectionState>());
 
     if (args.Length >= 2 && args[0] == "--cmd")
     {
@@ -119,11 +129,19 @@ triviela — a live football terminal (Triviela .NET TUI).
 
 Usage: triviela [flags]
 
+Data modes (auto-detected; no key needed for the default relay/ESPN paths):
+  relay   connect to the hosted Triviela backend (set Relay:Url) — full data, no key
+  local   poll directly with your own API-Football key (ApiFootball:ApiKey)
+  ESPN    keyless live data from ESPN when no key/relay is set (no xG/ratings/odds)
+  demo    offline simulated match
+
 Flags:
   --init            Write a config template to ~/.triviela/appsettings.json and exit.
   --once            Render the dashboard once and exit (non-interactive).
   --picker          Render the fixture picker once and exit.
   --cmd <command>   Run a single in-app command, print the result, and exit.
+  --local           Ignore any configured relay and poll locally (own key or keyless ESPN).
+  --demo            Force the offline demo match.
   --free            Launch in FREE mode (API-Football free-tier pacing, 100 req/day).
   --help, -h        Show this help and exit.
   --version, -v     Print the tool version and exit.
@@ -164,6 +182,12 @@ partial class Program
   "Reddit": {
     "ClientId": "",
     "ClientSecret": ""
+  },
+  "Relay": {
+    "Url": "https://triviela-relay.fly.dev/hub/match"
+  },
+  "Espn": {
+    "Enabled": true
   },
   "Triviela": {
     "LivePollSeconds": 12,

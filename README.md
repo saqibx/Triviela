@@ -4,9 +4,13 @@ A Bloomberg-style, real-time football intelligence terminal. Pick a live match a
 get a dense, constantly-updating grid of panels: score & clock, event ticker, lineups,
 team stats, venue & weather, and an optional AI story/sentiment readout.
 
-> **It runs with zero API keys.** A built-in demo source simulates a live World Cup
-> final (Brazil–Argentina) that genuinely ticks, so the whole pipeline — poller →
-> cache → push → panels — works out of the box. Add real keys to switch to live data.
+> **It runs with zero API keys.** Out of the box it streams *real* live data from ESPN's
+> public API (World Cup + top leagues) — no key, no cost. Point it at a hosted **Triviela relay**
+> (`Relay:Url`) for the full feed (xG, player ratings, odds) with still no key, or add your own
+> API-Football key to poll directly. With no network it falls back to a simulated demo match.
+>
+> The client picks a mode once at startup: **relay** (`Relay:Url` set) → **local** (your
+> API-Football key) → **ESPN** (keyless) → **demo**. `--local` / `--demo` force a mode.
 
 ---
 
@@ -185,7 +189,22 @@ key is present.
 | `FREE` | Toggle free-tier pacing — slows polling to ~1 refresh/3 min so a full match stays within API-Football's 100-calls/day free plan (or launch with `--free`) |
 | `CLOSE` | Dismiss the reference drawer |
 
-`TEAM`/`PLAYER`/`H2H` need an API-Football key; `ASK` needs a Claude key.
+In **relay** mode `TEAM`/`PLAYER`/`H2H`/`ASK` all work with no key (they run on the relay's
+keys, server-side, rate-limited). In **local/ESPN** mode `TEAM`/`PLAYER`/`H2H` need an
+API-Football key and `ASK` needs a Claude/OpenAI key.
+
+### Data sources / modes
+
+| Source | Key? | Used for |
+|---|---|---|
+| **ESPN** (site.api.espn.com) | No (default) | Keyless live data: score, clock, events, lineups, team stats, venue. No xG/ratings/odds. |
+| **Triviela relay** (SignalR) | No (set `Relay:Url`) | Full feed streamed from one hosted backend — incl. xG, ratings, odds, AI — at the host's cost. |
+| **API-Football** (api-sports.io) | Yes (own key) | Full direct polling — score, events, stats, lineups, venue, odds, ratings. |
+| **Demo** | No | Offline simulated match (`--demo`). |
+| **Open-Meteo** / **Reddit** / **Claude/OpenAI** | mixed | Weather (no key) · Fan Pulse (Reddit key) · AI story/analyst (LLM key, or via relay). |
+
+Self-hosting the relay: see [plan.md](plan.md) — one ASP.NET Core app (`src/Triviela.Relay`)
+on Fly.io + Upstash Redis, one API-Football subscription serves every client.
 
 ## What's built vs. what's next
 

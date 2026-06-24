@@ -1,0 +1,20 @@
+name: relay-deploy
+
+# Independent from the client release (tags 'v*'). Deploy the relay with a 'relay-v*' tag,
+# or manually via the Actions tab. Requires the FLY_API_TOKEN repo secret.
+on:
+  push:
+    tags: ['relay-v*']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency: deploy-relay
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy to Fly.io
+        run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

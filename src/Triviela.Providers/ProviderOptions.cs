@@ -13,6 +13,23 @@ public sealed class ApiFootballOptions
     public bool IsConfigured => !string.IsNullOrWhiteSpace(ApiKey);
 }
 
+public sealed class EspnOptions
+{
+    public const string SectionName = "Espn";
+
+    public string BaseUrl { get; set; } = "https://site.api.espn.com/";
+
+    /// <summary>ESPN soccer league slugs to scan for live fixtures. World Cup 2026 is the headline.</summary>
+    public string[] Leagues { get; set; } =
+    [
+        "fifa.world", "uefa.champions", "eng.1", "esp.1", "ita.1", "ger.1", "fra.1"
+    ];
+
+    public bool Enabled { get; set; } = true;
+
+    public bool IsConfigured => Enabled;
+}
+
 public sealed class RedditOptions
 {
     public const string SectionName = "Reddit";
