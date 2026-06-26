@@ -67,7 +67,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(sp =>
         {
             var llm = sp.GetRequiredService<IOptions<LlmOptions>>().Value;
-            return new LlmCostMeter { BudgetUsd = llm.BudgetUsdPerMatch };
+            return new LlmCostMeter
+            {
+                BudgetUsd = llm.BudgetUsdPerMatch,
+                GlobalDailyBudgetUsd = llm.GlobalDailyBudgetUsd
+            };
         });
 
         // LLM providers are registered in every mode so the status line can show the active provider

@@ -63,5 +63,7 @@ public interface IMatchIntel
 {
     bool IsEnabled { get; }
 
-    Task<MatchIntelItem?> NextAsync(MatchSnapshot snapshot, IReadOnlyCollection<string> avoidSubjects, CancellationToken ct);
+    /// <summary>One-shot batch of news nuggets, generated ONCE per match and cached — not a per-tick
+    /// web search. The nuggets (transfer sagas, milestones, backstories) don't change during a match.</summary>
+    Task<IReadOnlyList<MatchIntelItem>> BuildAsync(MatchSnapshot snapshot, int count, CancellationToken ct);
 }

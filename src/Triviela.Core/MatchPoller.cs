@@ -251,18 +251,26 @@ public sealed class MatchPoller(
             state.NarrativeFetchedUtc = DateTimeOffset.UtcNow;
         }
 
-        if (intel.IsEnabled && DateTimeOffset.UtcNow - state.IntelFetchedUtc > TimeSpan.FromSeconds(_opts.IntelPollSeconds))
+        // News intel is a ONE-SHOT batch (web search costs money) — generated once per match, after
+        // lineups are known so we research the actual people, then cached for the whole match.
+        if (intel.IsEnabled && !state.IntelRequested && state.HomeLineup is not null)
         {
-            var avoid = state.Intel.Where(i => i.Subject is not null).Select(i => i.Subject!).Distinct().ToArray();
-            var item = await GuardedAsync(() => intel.NextAsync(snapshot, avoid, ct), null, "intel");
-            if (item is not null)
+            state.IntelRequested = true;
+            var forFixture = fixture;
+            var forSnapshot = snapshot;
+            _ = Task.Run(async () =>
             {
-                state.Intel.Insert(0, item);
-                if (state.Intel.Count > 8) state.Intel.RemoveRange(8, state.Intel.Count - 8);
-                snapshot = state.BuildSnapshot(fixture);
-                store.Publish(snapshot);
-            }
-            state.IntelFetchedUtc = DateTimeOffset.UtcNow;
+                try
+                {
+                    var items = await intel.BuildAsync(forSnapshot, 6, _stopping);
+                    if (items.Count > 0 && _states.ContainsKey(forFixture.Id))
+                        state.Intel = items;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    logger.LogWarning(ex, "Intel build failed");
+                }
+            }, _stopping);
         }
     }
 

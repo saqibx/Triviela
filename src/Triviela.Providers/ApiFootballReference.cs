@@ -147,16 +147,50 @@ public sealed class ApiFootballReference(
 
     private async Task<Manager?> GetManagerAsync(string teamId, CancellationToken ct)
     {
+        // `coachs?team=` returns EVERY coach the team has ever had, unordered. The current one is
+        // the coach whose career stint at this team is still open (end == null). Among historical
+        // coaches (none open), fall back to the most recent start, so we never return an ancient name.
         var resp = await GetAsync($"coachs?team={teamId}", ct);
         if (resp is not { ValueKind: JsonValueKind.Array }) return null;
-        var first = resp.Value.EnumerateArray().FirstOrDefault();
-        if (first.ValueKind != JsonValueKind.Object) return null;
-        var name = first.TryGetProperty("name", out var n) ? n.GetString() : null;
+
+        JsonElement chosen = default;
+        bool found = false, chosenCurrent = false;
+        DateTimeOffset chosenStart = DateTimeOffset.MinValue;
+
+        foreach (var coach in resp.Value.EnumerateArray())
+        {
+            if (coach.ValueKind != JsonValueKind.Object) continue;
+
+            bool isCurrent = false;
+            DateTimeOffset latestStart = DateTimeOffset.MinValue;
+            if (coach.TryGetProperty("career", out var career) && career.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var stint in career.EnumerateArray())
+                {
+                    if (!stint.TryGetProperty("team", out var st) || !st.TryGetProperty("id", out var sid)
+                        || sid.ValueKind == JsonValueKind.Null || sid.GetRawText() != teamId) continue;
+
+                    if (stint.TryGetProperty("start", out var ss) && DateTimeOffset.TryParse(ss.GetString(), out var sd) && sd > latestStart)
+                        latestStart = sd;
+                    var end = stint.TryGetProperty("end", out var ee) ? ee : default;
+                    if (end.ValueKind == JsonValueKind.Null || (end.ValueKind == JsonValueKind.String && string.IsNullOrEmpty(end.GetString())))
+                        isCurrent = true;
+                }
+            }
+
+            bool better = !found
+                || (isCurrent && !chosenCurrent)
+                || (isCurrent == chosenCurrent && latestStart > chosenStart);
+            if (better) { chosen = coach; chosenCurrent = isCurrent; chosenStart = latestStart; found = true; }
+        }
+
+        if (!found) return null;
+        var name = chosen.TryGetProperty("name", out var n) ? n.GetString() : null;
         if (string.IsNullOrWhiteSpace(name)) return null;
-        var id = first.TryGetProperty("id", out var i) ? i.GetRawText() : name;
-        var nat = first.TryGetProperty("nationality", out var na) ? na.GetString() : null;
-        int? age = first.TryGetProperty("age", out var a) && a.ValueKind == JsonValueKind.Number ? a.GetInt32() : null;
-        return new Manager(id, name!, nat, age);
+        var id = chosen.TryGetProperty("id", out var i) ? i.GetRawText() : name;
+        var nat = chosen.TryGetProperty("nationality", out var na) ? na.GetString() : null;
+        int? age = chosen.TryGetProperty("age", out var a) && a.ValueKind == JsonValueKind.Number ? a.GetInt32() : null;
+        return new Manager(id!, name!, nat, age);
     }
 
     private record Standing(string Competition, int Rank, int Points, int Played, int Win, int Draw, int Loss, int GoalsFor, int GoalsAgainst);
@@ -198,14 +232,25 @@ public sealed class ApiFootballReference(
 
     public async Task<PlayerProfile?> GetPlayerProfileAsync(string playerQuery, string? fixtureId, CancellationToken ct)
     {
-        string? playerId = null;
-        if (fixtureId is not null)
-            playerId = await ResolvePlayerInFixtureAsync(fixtureId, playerQuery, ct);
+        // 1. Prefer a player in the live match's squad (cheap, unambiguous).
+        if (fixtureId is not null && await ResolvePlayerInFixtureAsync(fixtureId, playerQuery, ct) is { } inFixtureId)
+        {
+            var fixtureProfile = await GetPlayerByIdAsync(inFixtureId, ct);
+            if (fixtureProfile is not null) return fixtureProfile;
+        }
 
-        playerId ??= await ResolvePlayerGlobalAsync(playerQuery, ct);
-        if (playerId is null) return null;
-
-        return await GetPlayerByIdAsync(playerId, ct);
+        // 2. Global search returns many namesakes (e.g. "Sane" → 75 players). Disambiguate by who's
+        //    actually playing: the candidate with the most appearances is almost always the one meant.
+        var candidates = await ResolvePlayerCandidatesAsync(playerQuery, ct);
+        PlayerProfile? best = null;
+        int bestApps = -1;
+        foreach (var id in candidates)
+        {
+            var profile = await GetPlayerByIdAsync(id, ct);
+            if (profile is null) continue;
+            if (profile.Appearances > bestApps) { bestApps = profile.Appearances; best = profile; }
+        }
+        return best;
     }
 
     private async Task<string?> ResolvePlayerInFixtureAsync(string fixtureId, string query, CancellationToken ct)
@@ -226,22 +271,40 @@ public sealed class ApiFootballReference(
         return null;
     }
 
-    private async Task<string?> ResolvePlayerGlobalAsync(string query, CancellationToken ct)
+    // Returns the most relevant candidate ids: exact full-name first, then exact surname, then
+    // partial — capped to bound the API cost of profiling each one for the appearance-based ranking.
+    private const int MaxPlayerCandidates = 5;
+
+    private async Task<IReadOnlyList<string>> ResolvePlayerCandidatesAsync(string query, CancellationToken ct)
     {
         var resp = await GetAsync($"players/profiles?search={Uri.EscapeDataString(query)}", ct);
-        if (resp is not { ValueKind: JsonValueKind.Array }) return null;
+        if (resp is not { ValueKind: JsonValueKind.Array }) return [];
 
-        string? firstId = null;
+        var nq = Normalize(query);
+        var exactFull = new List<string>();
+        var exactSurname = new List<string>();
+        var partial = new List<string>();
+
         foreach (var el in resp.Value.EnumerateArray())
         {
             if (!el.TryGetProperty("player", out var pl)) continue;
             var id = pl.TryGetProperty("id", out var pid) ? pid.GetRawText() : null;
             if (id is null) continue;
-            firstId ??= id;
+
             var name = pl.TryGetProperty("name", out var pn) ? pn.GetString() : null;
-            if (name is not null && string.Equals(name, query, StringComparison.OrdinalIgnoreCase)) return id;
+            var firstname = pl.TryGetProperty("firstname", out var fn) ? fn.GetString() : null;
+            var lastname = pl.TryGetProperty("lastname", out var lnm) ? lnm.GetString() : null;
+
+            var nName = Normalize(name ?? "");
+            var nFull = Normalize($"{firstname} {lastname}".Trim());
+            var nLast = Normalize(lastname ?? "");
+
+            if (nq.Length > 0 && (nName == nq || nFull == nq)) exactFull.Add(id);
+            else if (nq.Length > 0 && nLast == nq) exactSurname.Add(id);
+            else if (nq.Length > 0 && (nName.Contains(nq) || nFull.Contains(nq))) partial.Add(id);
         }
-        return firstId;
+
+        return exactFull.Concat(exactSurname).Concat(partial).Take(MaxPlayerCandidates).ToList();
     }
 
     private async Task<PlayerProfile?> GetPlayerByIdAsync(string playerId, CancellationToken ct)

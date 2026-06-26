@@ -44,11 +44,20 @@ public sealed class ApiFootballDataSource(
         var response = await GetResponseAsync("fixtures?live=all", ct);
         if (response is not { ValueKind: JsonValueKind.Array }) return [];
 
+        var allowed = _opts.LiveLeagueIds;
         var list = new List<Fixture>();
         foreach (var el in response.Value.EnumerateArray())
         {
             try
             {
+                // Only surface the competitions that matter (World Cup, Euros, UCL, top-5 leagues).
+                if (allowed.Length > 0)
+                {
+                    var leagueId = el.TryGetProperty("league", out var lg) && lg.TryGetProperty("id", out var lid) && lid.ValueKind == JsonValueKind.Number
+                        ? lid.GetInt32() : -1;
+                    if (!allowed.Contains(leagueId)) continue;
+                }
+
                 if (ParseFixture(el) is { } fx) list.Add(fx);
             }
             catch (Exception ex)

@@ -29,8 +29,10 @@ public sealed class FixturePollState(string fixtureId)
     public IReadOnlyList<RatedPlayer> AwayRatings = [];
     public MatchNarrative? Narrative;
     public IReadOnlyList<SocialPost> Social = [];
-    public readonly List<MatchIntelItem> Intel = [];
 
+    // Intel and Facts are one-shot, generated once per match by a background task (hence volatile).
+    public volatile IReadOnlyList<MatchIntelItem> Intel = [];
+    public bool IntelRequested;
     public volatile IReadOnlyList<MatchFact> Facts = [];
     public bool FactsRequested;
 
@@ -38,7 +40,6 @@ public sealed class FixturePollState(string fixtureId)
     public DateTimeOffset OddsFetchedUtc = DateTimeOffset.MinValue;
     public DateTimeOffset NarrativeFetchedUtc = DateTimeOffset.MinValue;
     public DateTimeOffset SocialFetchedUtc = DateTimeOffset.MinValue;
-    public DateTimeOffset IntelFetchedUtc = DateTimeOffset.MinValue;
 
     public MatchSnapshot BuildSnapshot(Fixture fixture) => new()
     {
@@ -56,7 +57,7 @@ public sealed class FixturePollState(string fixtureId)
         AwayRatings = AwayRatings,
         HeadToHead = HeadToHead,
         Social = Social,
-        Intel = Intel.ToArray(),
+        Intel = Intel,
         Facts = Facts,
         UpdatedAtUtc = DateTimeOffset.UtcNow
     };
