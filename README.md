@@ -10,10 +10,10 @@ European leagues).
 
 Apps like this run on a paid data feed. The one Triviela uses, API-Football, costs about $19 a
 month. The obvious way to build on it is to make every user sign up for their own key and pay.
-We didn't want to do that. Asking someone to create an account and enter a card just to glance
+I didn't want to do that. Asking someone to create an account and enter a card just to glance
 at a score is a bad first experience, and most people would simply close the app instead.
 
-So we built it the other way around. We run one backend that holds a single API-Football
+So I built it the other way around. I run one backend that holds a single API-Football
 subscription. It fetches the live data once and streams it out to every copy of the app over a
 live connection. One subscription covers everyone. You install Triviela and it works straight
 away: no signup, no key, nothing to pay.
@@ -146,5 +146,5 @@ streams snapshots to every connected client over SignalR.
 
 Want to run the backend yourself? It is a small ASP.NET Core app in
 [src/Triviela.Relay](src/Triviela.Relay) that runs on a free Fly.io machine with an Upstash
-Redis cache. One subscription serves all of your users. The full walkthrough is in
-[plan.md](plan.md).
+Redis cache. You set your API-Football and Claude keys as environment variables on the host,
+point the app at the relay's URL, and one subscription then serves all of your users.
